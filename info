@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Data Excel ke Tabel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.dataTables.min.css" />
+  <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    body { font-family: "Segoe UI", sans-serif; margin: 20px; background: #f9fafb; }
+    h2 { text-align:center; margin-bottom: 15px; }
+    #uploadExcel { margin-bottom: 15px; }
+    table.dataTable thead { background:#2563eb; color:white; }
+    #infoBox { text-align:center; color:#6b7280; margin-top:20px; }
+    thead input { width: 100%; box-sizing: border-box; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h2>📊 Data ALBER</h2>
+  <input type="file" id="uploadExcel" accept=".xlsx,.xls,.csv" />
+  <br><br>
+  <table id="alberTable" class="display nowrap" style="width:100%">
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+  <div id="infoBox">Silakan upload file Excel untuk melihat data</div>
+
+<script>
+function renderTable(headers, rows) {
+  document.getElementById("infoBox").style.display = "none";
+
+  // baris header pertama
+  let thead = "<tr><th>No</th>";
+  headers.forEach(h => thead += `<th>${h}</th>`);
+  thead += "</tr>";
+
+  // baris header kedua untuk filter per kolom
+  thead += "<tr><th></th>";
+  headers.forEach(() => thead += `<th><input type="text" placeholder="Cari..."></th>`);
+  thead += "</tr>";
+
+  document.getElementById("tableHead").innerHTML = thead;
+
+  let tbody = "";
+  rows.forEach((r, idx) => {
+    tbody += "<tr><td></td>";
+    headers.forEach((h,i) => {
+      let val = r[i] ?? "";
+      if (val instanceof Date && !isNaN(val)) {
+        val = val.toLocaleDateString("id-ID");
+      }
+      tbody += `<td>${val}</td>`;
+    });
+    tbody += "</tr>";
+  });
+  document.getElementById("tableBody").innerHTML = tbody;
+
+  if ($.fn.DataTable.isDataTable("#alberTable")) {
+    $('#alberTable').DataTable().clear().destroy();
+  }
+
+  const dt = $('#alberTable').DataTable({
+    dom: 'Bfrtip',
+    buttons: ['excelHtml5','csvHtml5','pdfHtml5','print'],
+    orderCellsTop: true,
+    initComplete: function () {
+      // apply filter per kolom
+      this.api().columns().every(function () {
+        const that = this;
+        $('input', this.header()).on('keyup change clear', function () {
+          if (that.search() !== this.value) {
+            that.search(this.value).draw();
+          }
+        });
+      });
+    },
+    columnDefs: [{ targets: 0, orderable:false, searchable:false }]
+  });
+
+  dt.on('order.dt search.dt draw.dt', function(){
+    dt.column(0, {search:'applied', order:'applied'}).nodes().each((cell, i) => cell.innerHTML = i+1);
+  }).draw();
+}
+
+document.getElementById('uploadExcel').addEventListener('change', function(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const data = new Uint8Array(ev.target.result);
+    const wb = XLSX.read(data, { type:'array', cellDates:true, raw:false });
+    const sheetName = wb.SheetNames.includes("Data ALBER") ? "Data ALBER" : wb.SheetNames[0];
+    const sheet = wb.Sheets[sheetName];
+    let aoa = XLSX.utils.sheet_to_json(sheet, { header:1, defval:"" });
+
+    let headers = aoa[0];         
+    let rows = aoa.slice(2);      
+    renderTable(headers, rows);
+  };
+  reader.readAsArrayBuffer(file);
+});
+</script>
+</body>
+</html>
